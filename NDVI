@@ -1,0 +1,71 @@
+// NDVI Burn Recovery Ratio
+// Define Temporal Filters (2020 Pre-Fire Baseline)
+var base_filter = ee.Filter.date('2020-06-01', '2020-08-12');
+var summer_21 = ee.Filter.date('2021-06-01', '2021-08-31'); 
+var summer_22 = ee.Filter.date('2022-06-01', '2022-08-31');
+var summer_23 = ee.Filter.date('2023-06-01', '2023-08-31');
+var summer_24 = ee.Filter.date('2024-06-01', '2024-08-31'); 
+var summer_25 = ee.Filter.date('2025-06-01', '2025-08-31');
+
+// Define the Cloud Masking and Scaling Function
+function prepLandsat(image) {
+  var qa = image.select('QA_PIXEL');
+  var cloudShadowBitMask = (1 << 4);
+  var cloudsBitMask = (1 << 3);
+  var cirrusBitMask = (1 << 2);
+  var dilatedCloudBitMask = (1 << 1);
+  
+  var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0)
+    .and(qa.bitwiseAnd(cloudsBitMask).eq(0))
+    .and(qa.bitwiseAnd(cirrusBitMask).eq(0))
+    .and(qa.bitwiseAnd(dilatedCloudBitMask).eq(0));
+  
+  var opticalBands = image.select('SR_B.').multiply(0.0000275).add(-0.2);
+  return image.addBands(opticalBands, null, true).updateMask(mask);
+}
+
+// Define the NDVI Function
+function addNDVI(image) {
+  var ndvi = image.normalizedDifference(['SR_B5', 'SR_B4']).rename('NDVI');
+  return image.addBands(ndvi);
+}
+
+// Load, Filter, and Process the Landsat 8 Collection
+var l8 = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterBounds(CamPeakDay1)
+  .map(prepLandsat) 
+  .map(addNDVI);    
+
+// Create Yearly Summer NDVI Composites
+var ndvi_base = l8.filter(base_filter).median().clip(CamPeakDay1).select('NDVI');
+var ndvi_21 = l8.filter(summer_21).median().clip(CamPeakDay1).select('NDVI');
+var ndvi_22 = l8.filter(summer_22).median().clip(CamPeakDay1).select('NDVI');
+var ndvi_23 = l8.filter(summer_23).median().clip(CamPeakDay1).select('NDVI');
+var ndvi_24 = l8.filter(summer_24).median().clip(CamPeakDay1).select('NDVI');
+var ndvi_25 = l8.filter(summer_25).median().clip(CamPeakDay1).select('NDVI');
+
+// Calculate Optical BRR (Post-fire / 2020 Pre-fire)
+var brr_ndvi_21 = ndvi_21.divide(ndvi_base).rename('BRR_NDVI');
+var brr_ndvi_22 = ndvi_22.divide(ndvi_base).rename('BRR_NDVI');
+var brr_ndvi_23 = ndvi_23.divide(ndvi_base).rename('BRR_NDVI');
+var brr_ndvi_24 = ndvi_24.divide(ndvi_base).rename('BRR_NDVI');
+var brr_ndvi_25 = ndvi_25.divide(ndvi_base).rename('BRR_NDVI');
+
+// Extract Zonal Statistics (Mean BRR for the Ignition Zone)
+function getOpticalMean(image) {
+  var stats = image.reduceRegion({
+    reducer: ee.Reducer.mean(),
+    geometry: CamPeakDay1, 
+    scale: 30, // Landsat 8 resolution
+    maxPixels: 1e9
+  });
+  return stats.get('BRR_NDVI');
+}
+
+// Print the results to the Console
+print('--- Optical BRR (NDVI Recovery from 2020) ---');
+print('2021 Mean BRR:', getOpticalMean(brr_ndvi_21));
+print('2022 Mean BRR:', getOpticalMean(brr_ndvi_22));
+print('2023 Mean BRR:', getOpticalMean(brr_ndvi_23));
+print('2024 Mean BRR:', getOpticalMean(brr_ndvi_24));
+print('2025 Mean BRR:', getOpticalMean(brr_ndvi_25));
