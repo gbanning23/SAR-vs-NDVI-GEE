@@ -1,0 +1,41 @@
+// ==========================================
+// PRE-FIRE LAND COVER EXPORT (NLCD 2019)
+// ==========================================
+
+// Call the 2019 NLCD dataset and clip it to your boundary
+var nlcd2019 = ee.Image('USGS/NLCD_RELEASES/2019_REL/NLCD/2019')
+  .select('landcover')
+  .clip(CamPeakDay1);
+
+// Export the clipped categorical raster to Google Drive
+Export.image.toDrive({
+  image: nlcd2019,
+  description: 'CamPeak_NLCD_2019_PreFire',
+  folder: 'GEE_Exports',
+  fileNamePrefix: 'CamPeak_NLCD_2019_PreFire',
+  region: CamPeakDay1, 
+  scale: 30, // NLCD is natively 30-meter resolution
+  crs: 'EPSG:4326',
+  maxPixels: 1e9
+});
+
+// ==========================================
+// POST-FIRE LAND COVER EXPORT (NLCD 2021)
+// ==========================================
+
+// Call the 2021 NLCD dataset and clip it to the day 1 boundary
+var nlcd2021 = ee.Image('USGS/NLCD_RELEASES/2021_REL/NLCD/2021')
+  .select('landcover')
+  .clip(CamPeakDay1);
+
+// Export the clipped categorical raster to Google Drive
+Export.image.toDrive({
+  image: nlcd2021,
+  description: 'CamPeak_NLCD_2021_PostFire',
+  folder: 'GEE_Exports',
+  fileNamePrefix: 'CamPeak_NLCD_2021_PostFire',
+  region: CamPeakDay1, 
+  scale: 30, // NLCD is natively 30-meter resolution
+  crs: 'EPSG:4326',
+  maxPixels: 1e9
+});
