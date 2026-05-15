@@ -1,0 +1,58 @@
+// SAR Burn Recovery Ratio
+// Define Temporal Filters (2020 Pre-Fire Baseline)
+var base_filter = ee.Filter.date('2020-06-01', '2020-08-12');
+var summer_21 = ee.Filter.date('2021-06-01', '2021-08-31'); 
+var summer_22 = ee.Filter.date('2022-06-01', '2022-08-31');
+var summer_23 = ee.Filter.date('2023-06-01', '2023-08-31');
+var summer_24 = ee.Filter.date('2024-06-01', '2024-08-31'); 
+var summer_25 = ee.Filter.date('2025-06-01', '2025-08-31');
+
+// Define the SAR Collection and filter bounds
+var s1 = ee.ImageCollection('COPERNICUS/S1_GRD') 
+        .filterBounds(CamPeakDay1)
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
+        .filter(ee.Filter.eq('instrumentMode', 'IW'))
+        .select(['VV', 'VH'])
+        .map(function(image) {
+          var edge = image.lt(-30.0);
+          var maskedImage = image.mask().and(edge.not());
+          return image.updateMask(maskedImage);
+        });
+
+// Filter for ONLY the descending pass
+var desc = s1.filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'));
+
+// Create Yearly Summer Composites
+var img_base = desc.filter(base_filter).median().clip(CamPeakDay1);
+var img_21 = desc.filter(summer_21).median().clip(CamPeakDay1);
+var img_22 = desc.filter(summer_22).median().clip(CamPeakDay1);
+var img_23 = desc.filter(summer_23).median().clip(CamPeakDay1);
+var img_24 = desc.filter(summer_24).median().clip(CamPeakDay1);
+var img_25 = desc.filter(summer_25).median().clip(CamPeakDay1);
+
+// Calculate SAR BRR (Post-fire dB - 2020 Pre-fire dB = Logarithmic Ratio)
+var brr_sar_21 = img_21.select('VH').subtract(img_base.select('VH')).rename('BRR_SAR');
+var brr_sar_22 = img_22.select('VH').subtract(img_base.select('VH')).rename('BRR_SAR');
+var brr_sar_23 = img_23.select('VH').subtract(img_base.select('VH')).rename('BRR_SAR');
+var brr_sar_24 = img_24.select('VH').subtract(img_base.select('VH')).rename('BRR_SAR');
+var brr_sar_25 = img_25.select('VH').subtract(img_base.select('VH')).rename('BRR_SAR');
+
+// Extract Zonal Statistics (Mean BRR for the Ignition Zone)
+function getSarMean(image) {
+  var stats = image.reduceRegion({
+    reducer: ee.Reducer.mean(),
+    geometry: CamPeakDay1, 
+    scale: 10, // Sentinel-1 resolution
+    maxPixels: 1e9
+  });
+  return stats.get('BRR_SAR');
+}
+
+// Print the results to the Console
+print('--- SAR BRR (VH Structural Recovery from 2020) ---');
+print('2021 Mean BRR:', getSarMean(brr_sar_21));
+print('2022 Mean BRR:', getSarMean(brr_sar_22));
+print('2023 Mean BRR:', getSarMean(brr_sar_23));
+print('2024 Mean BRR:', getSarMean(brr_sar_24));
+print('2025 Mean BRR:', getSarMean(brr_sar_25));
